@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -eu
+
+tag=sha-$(git rev-parse --verify HEAD --short)
+
+# push
+docker push us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-operator:"${tag}"
