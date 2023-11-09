@@ -49,12 +49,6 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 	if config.Enabled {
 		webhookLog.Info("Qpoint egress enabled, mutating...")
 
-		// if w.Development {
-		// 	fmt.Println("Before: ")
-		// 	jsonBytes, _ := json.MarshalIndent(pod, "", "  ")
-		// 	fmt.Println(string(jsonBytes))
-		// }
-
 		// mutate the pod to include egress through the gateway
 		if err := MutateEgress(pod, config); err != nil {
 			webhookLog.Error(err, "failed to mutate pod for egress")
@@ -73,11 +67,6 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 			}
 		}
 
-		// if w.Development {
-		// 	fmt.Println("AFTER: ")
-		// 	jsonBytes, _ := json.MarshalIndent(pod, "", "  ")
-		// 	fmt.Println(string(jsonBytes))
-		// }
 	} else {
 		webhookLog.Info("Qpoint egress not enabled, ignoring...")
 	}

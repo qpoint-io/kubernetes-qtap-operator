@@ -6,5 +6,6 @@ metadata:
 data:
   annotations.yaml: |
     qpoint.io/inject-ca: "true"
+    qpoint.io/egress-init-tag: "release-v0.0.2"
     qpoint.io/egress-to-domain: "qtap.qpoint.svc.cluster.local"
 
