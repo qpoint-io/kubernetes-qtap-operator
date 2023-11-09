@@ -12,10 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var (
-	webhookLog = ctrl.Log.WithName("pod.v1.admission.webhook")
-)
-
 type Webhook struct {
 	Development bool
 	ApiClient   client.Client
@@ -25,22 +21,34 @@ type Webhook struct {
 // +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io,sideEffects=None,admissionReviewVersions=v1
 
 func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// create a logger
+	webhookLog := ctrl.Log.WithName(fmt.Sprintf("pod.v1.admission.webhook[%s]", req.UID))
+
 	pod := &corev1.Pod{}
 	err := w.Decoder.Decode(req, pod)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	webhookLog.Info(fmt.Sprintf("Pod mutation requested: %s", req.UID))
+	webhookLog.Info("Pod mutation requested")
+
+	// initilize a config with defaults
+	config := &Config{
+		Namespace: req.Namespace,
+		Enabled:   false,
+		InjectCa:  true,
+		apiClient: w.ApiClient,
+	}
 
 	// initialize config for this pod
-	config, err := InitConfig(w.ApiClient, req.Namespace, pod)
-	if err != nil {
+	if err := config.Init(ctx, pod); err != nil {
 		webhookLog.Error(err, "failed to initialize config for pod")
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	if config.Enabled {
+		webhookLog.Info("Qpoint egress enabled, mutating...")
+
 		// if w.Development {
 		// 	fmt.Println("Before: ")
 		// 	jsonBytes, _ := json.MarshalIndent(pod, "", "  ")
@@ -65,6 +73,8 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 		// 	jsonBytes, _ := json.MarshalIndent(pod, "", "  ")
 		// 	fmt.Println(string(jsonBytes))
 		// }
+	} else {
+		webhookLog.Info("Qpoint egress not enabled, ignoring...")
 	}
 
 	marshaledPod, err := json.Marshal(pod)

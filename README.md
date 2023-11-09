@@ -19,7 +19,20 @@ todo
 
 __Option 1:__ Namespace label
 
+```
+kubectl label namespace <namespace> qpoint-egress=enabled
+```
+
 __Option 2:__ Pod annotation
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-world
+  annotations:
+    qpoint.io/egress: enabled
+```
 
 ## Local Dev
 

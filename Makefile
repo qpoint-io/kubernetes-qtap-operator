@@ -100,7 +100,7 @@ kind-rollout: ## Creates a new rollout with the newest image
 
 .PHONY: kind-cert-manager
 kind-cert-manager: ## Installs cert manager onto the kind cluster
-	@($(HELM) repo list | grep -qw "jetstack" || \
+	($(HELM) repo list | grep -qw "jetstack" || \
 		($(HELM) repo add jetstack https://charts.jetstack.io && $(HELM) repo update)) && \
 	($(KUBECTL) get namespaces | grep -qw "cert-manager" || \
 		$(HELM) install \
