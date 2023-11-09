@@ -89,10 +89,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// register admission webhook for pods
 	mgr.GetWebhookServer().Register("/mutate-v1-pod", &webhook.Admission{
 		Handler: &qtapv1.Webhook{
-			Client:  mgr.GetClient(),
-			Decoder: admission.NewDecoder(mgr.GetScheme()),
+			Development: true,
+			ApiClient:   mgr.GetClient(),
+			Decoder:     admission.NewDecoder(mgr.GetScheme()),
 		},
 	})
 

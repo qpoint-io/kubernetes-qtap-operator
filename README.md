@@ -23,64 +23,16 @@ __Option 2:__ Pod annotation
 
 ## Local Dev
 
-### Setup
-
-1. Start a kind cluster
+1. Bootstrap dev cluster (uses KinD) with live-reloading
 
 ```
-make kind-create
+make dev
 ```
 
-2. Provision cert-manager
+2. Cleanup (when done)
 
 ```
-make kind-cert-manager
-```
-
-3. Build the image
-
-```
-make docker-build
-```
-
-4. Load the image into the cluster
-
-```
-make kind-upload
-```
-
-5. Deploy
-
-```
-make deploy
-```
-
-6. Cleanup (when done)
-
-```
-make kind-delete
-```
-
-### Develop
-
-1. Write code
-
-2. Build image
-
-```
-make docker-build
-```
-
-3. Load the image into the cluster
-
-```
-make kind-upload
-```
-
-4. Rollout
-
-```
-make kind-rollout
+make dev-down
 ```
 
 ## License

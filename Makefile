@@ -95,7 +95,8 @@ kind-upload: ## Uploads the docker image into the kind cluster
 
 .PHONY: kind-rollout
 kind-rollout: ## Creates a new rollout with the newest image
-	kubectl rollout restart deployment/qtap-operator-controller-manager
+	$(KUBECTL) rollout restart deployment/qtap-operator-controller-manager -n qpoint
+	$(KUBECTL) rollout status deployment/qtap-operator-controller-manager -n qpoint --timeout=60s
 
 .PHONY: kind-cert-manager
 kind-cert-manager: ## Installs cert manager onto the kind cluster
@@ -104,6 +105,28 @@ kind-cert-manager: ## Installs cert manager onto the kind cluster
 		--namespace cert-manager \
 		--create-namespace \
 		--set installCRDs=true
+
+.PHONY: dev-up
+dev-up: docker-build kind-create kind-cert-manager kind-upload deploy ## Bootstrap the dev cluster (KinD)
+
+.PHONY: dev-down
+dev-down: kind-delete ## Teardown the dev cluster (KinD)
+
+.PHONY: dev-deploy
+dev-deploy: docker-build kind-upload kind-rollout ## Build, upload, and rollout the latest to the dev cluster
+
+.PHONY: dev-logs
+dev-logs: ## Stream logs from the manager container
+	$(KUBECTL) logs -f deployment/qtap-operator-controller-manager -c manager -n qpoint
+
+.PHONY: dev
+dev: dev-up ## Watch for changes and deploy
+	@echo $$'#!/usr/bin/env bash\n\n make dev-logs\n\n' > ./tmp/main
+	@chmod +x ./tmp/main
+	$(AIR) \
+		--build.cmd "make dev-deploy"
+		--build.include_dir "cmd,api"
+		--build.post_cmd "make dev-down"
 
 ##@ Build
 
@@ -175,9 +198,11 @@ $(LOCALBIN):
 
 ## Tool Binaries
 KUBECTL ?= kubectl
+HELM ?= helm
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+AIR ?= $(LOCALBIN)/air
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
@@ -202,3 +227,8 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: air
+air: $(AIR) ## Download air locally if necessary.
+$(AIR): $(LOCALBIN)
+	test -s $(LOCALBIN)/air || GOBIN=$(LOCALBIN) go install github.com/cosmtrek/air@latest
