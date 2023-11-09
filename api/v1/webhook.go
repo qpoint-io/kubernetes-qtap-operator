@@ -62,6 +62,11 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 		}
 
 		if config.InjectCa {
+			if err := EnsureAssetsInNamespace(); err != nil {
+				webhookLog.Error(err, "failed to add assets to namespace for ca injection")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+
 			if err := MutateCaInjection(pod, config); err != nil {
 				webhookLog.Error(err, "failed to mutate pod for ca injection")
 				return admission.Errored(http.StatusInternalServerError, err)

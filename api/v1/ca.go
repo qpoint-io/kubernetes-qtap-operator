@@ -12,3 +12,7 @@ var buildCaScript string
 func MutateCaInjection(pod *corev1.Pod, config *Config) error {
 	return nil
 }
+
+func EnsureAssetsInNamespace() error {
+	return nil
+}
