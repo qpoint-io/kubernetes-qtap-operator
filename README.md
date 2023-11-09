@@ -23,16 +23,10 @@ __Option 2:__ Pod annotation
 
 ## Local Dev
 
-1. Bootstrap dev cluster (uses KinD) with live-reloading
+Bootstrap dev cluster (uses KinD) with live-reloading
 
 ```
 make dev
-```
-
-2. Cleanup (when done)
-
-```
-make dev-down
 ```
 
 ## License

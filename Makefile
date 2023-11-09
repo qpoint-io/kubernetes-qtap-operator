@@ -83,15 +83,15 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: kind-create
 kind-create: ## Bootstraps a kind cluster for local development
-	kind create cluster --name ${IMG}
+	@kind get clusters | grep -qw "^${IMG}$$" || kind create cluster --name ${IMG}
 
 .PHONY: kind-delete
 kind-delete: ## Tears down a kind cluster for local development
-	kind delete cluster --name ${IMG}
+	@kind delete cluster --name ${IMG}
 
 .PHONY: kind-upload
 kind-upload: ## Uploads the docker image into the kind cluster
-	kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name ${IMG}
+	@kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name ${IMG}
 
 .PHONY: kind-rollout
 kind-rollout: ## Creates a new rollout with the newest image
@@ -100,11 +100,14 @@ kind-rollout: ## Creates a new rollout with the newest image
 
 .PHONY: kind-cert-manager
 kind-cert-manager: ## Installs cert manager onto the kind cluster
-	helm install \
+	@($(HELM) repo list | grep -qw "jetstack" || \
+		($(HELM) repo add jetstack https://charts.jetstack.io && $(HELM) repo update)) && \
+	($(KUBECTL) get namespaces | grep -qw "cert-manager" || \
+		$(HELM) install \
 		cert-manager jetstack/cert-manager \
 		--namespace cert-manager \
 		--create-namespace \
-		--set installCRDs=true
+		--set installCRDs=true)
 
 .PHONY: dev-up
 dev-up: docker-build kind-create kind-cert-manager kind-upload deploy ## Bootstrap the dev cluster (KinD)
@@ -120,12 +123,12 @@ dev-logs: ## Stream logs from the manager container
 	$(KUBECTL) logs -f deployment/qtap-operator-controller-manager -c manager -n qpoint
 
 .PHONY: dev
-dev: dev-up ## Watch for changes and deploy
+dev: dev-up air ## Watch for changes and deploy
 	@echo $$'#!/usr/bin/env bash\n\n make dev-logs\n\n' > ./tmp/main
 	@chmod +x ./tmp/main
 	$(AIR) \
-		--build.cmd "make dev-deploy"
-		--build.include_dir "cmd,api"
+		--build.cmd "make dev-deploy" \
+		--build.include_dir "cmd,api" \
 		--build.post_cmd "make dev-down"
 
 ##@ Build
