@@ -5,5 +5,8 @@ metadata:
 spec:
   containers:
   - name: hello-world-container
-    image: busybox
+    image: curlimages/curl
     command: ['sh', '-c', 'echo Hello World! && sleep 3600']
+  # - name: hello-world-container
+  #   image: ubuntu:latest
+  #   command: ['sh', '-c', 'echo Hello World! && sleep 3600']

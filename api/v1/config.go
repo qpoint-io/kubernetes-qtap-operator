@@ -3,8 +3,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -14,15 +12,17 @@ import (
 const ANNOTATIONS_CONFIGMAP = "qtap-operator-default-pod-annotations-configmap"
 
 type Config struct {
-	Namespace string
-	Enabled   bool
-	InjectCa  bool
+	Enabled           bool
+	InjectCa          bool
+	Namespace         string
+	OperatorNamespace string
+	Client            client.Client
+	Ctx               context.Context
 
-	apiClient   client.Client
 	annotations map[string]string
 }
 
-func (c *Config) Init(ctx context.Context, pod *corev1.Pod) error {
+func (c *Config) Init(pod *corev1.Pod) error {
 	// check to see if an annotation is set on the pod to enable egress
 	egress, exists := pod.Annotations["qpoint.io/egress"]
 	if exists && egress == "enabled" {
@@ -32,7 +32,7 @@ func (c *Config) Init(ctx context.Context, pod *corev1.Pod) error {
 	// if we're not enabled yet, let's check the namespace
 	if !c.Enabled {
 		namespace := &corev1.Namespace{}
-		if err := c.apiClient.Get(ctx, client.ObjectKey{Name: c.Namespace}, namespace); err != nil {
+		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: c.Namespace}, namespace); err != nil {
 			return fmt.Errorf("fetching namespace '%s' from the api: %w", c.Namespace, err)
 		}
 
@@ -45,16 +45,10 @@ func (c *Config) Init(ctx context.Context, pod *corev1.Pod) error {
 	// if we're enabled
 	if c.Enabled {
 
-		// first, what's our current namespace
-		thisNamespace, err := getCurrentNamespace()
-		if err != nil {
-			return fmt.Errorf("fetching this current namespace: %w", err)
-		}
-
 		// let's fetch the default settings in the configmap
 		configMap := &corev1.ConfigMap{}
-		if err := c.apiClient.Get(ctx, client.ObjectKey{Name: ANNOTATIONS_CONFIGMAP, Namespace: thisNamespace}, configMap); err != nil {
-			return fmt.Errorf("fetching configmap '%s' at namespace '%s' from the api: %w", ANNOTATIONS_CONFIGMAP, thisNamespace, err)
+		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: ANNOTATIONS_CONFIGMAP, Namespace: c.OperatorNamespace}, configMap); err != nil {
+			return fmt.Errorf("fetching configmap '%s' at namespace '%s' from the api: %w", ANNOTATIONS_CONFIGMAP, c.OperatorNamespace, err)
 		}
 
 		// unmarshal the data as yaml
@@ -84,13 +78,4 @@ func (c *Config) Init(ctx context.Context, pod *corev1.Pod) error {
 
 func (c *Config) Get(key string) string {
 	return c.annotations[fmt.Sprintf("qpoint.io/%s", key)]
-}
-
-func getCurrentNamespace() (string, error) {
-	nsFile := filepath.Join("/var/run/secrets/kubernetes.io/serviceaccount", "namespace")
-	namespace, err := os.ReadFile(nsFile)
-	if err != nil {
-		return "", err
-	}
-	return string(namespace), nil
 }

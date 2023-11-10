@@ -24,21 +24,21 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 		},
 	}
 
-	// TO_DOMAIN
-	toDomain := config.Get("egress-to-domain")
-	if toDomain != "" {
-		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
-			Name:  "TO_DOMAIN",
-			Value: toDomain,
-		})
-	}
-
 	// TO_ADDR
 	toAddr := config.Get("egress-to-addr")
 	if toAddr != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "TO_ADDR",
 			Value: toAddr,
+		})
+	}
+
+	// TO_DOMAIN
+	toDomain := config.Get("egress-to-domain")
+	if toAddr == "" && toDomain != "" {
+		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
+			Name:  "TO_DOMAIN",
+			Value: toDomain,
 		})
 	}
 
