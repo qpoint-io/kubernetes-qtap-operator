@@ -1,0 +1,5 @@
+resources:
+  - ../default
+
+patches:
+- path: kind_imagepull_patch.yaml
