@@ -27,3 +27,6 @@ Dockerfile.cross
 
 # temp files
 tmp/
+
+# Helmify
+chart/
