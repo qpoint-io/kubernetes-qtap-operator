@@ -1,0 +1,3 @@
+# This gets replaced during the docker build process
+# with the latest ca-certificates from Fedora that
+# will be mounted at /etc/pki/tls/certs/ca-bundle.crt

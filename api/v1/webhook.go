@@ -13,9 +13,10 @@ import (
 )
 
 type Webhook struct {
-	Development bool
+	Namespace   string
 	ApiClient   client.Client
 	Decoder     *admission.Decoder
+	Development bool
 }
 
 // +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io,sideEffects=None,admissionReviewVersions=v1
@@ -34,14 +35,16 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 
 	// initilize a config with defaults
 	config := &Config{
-		Namespace: req.Namespace,
-		Enabled:   false,
-		InjectCa:  true,
-		apiClient: w.ApiClient,
+		Namespace:         req.Namespace,
+		OperatorNamespace: w.Namespace,
+		Enabled:           false,
+		InjectCa:          false,
+		Client:            w.ApiClient,
+		Ctx:               ctx,
 	}
 
 	// initialize config for this pod
-	if err := config.Init(ctx, pod); err != nil {
+	if err := config.Init(pod); err != nil {
 		webhookLog.Error(err, "failed to initialize config for pod")
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
@@ -56,7 +59,7 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 		}
 
 		if config.InjectCa {
-			if err := EnsureAssetsInNamespace(); err != nil {
+			if err := EnsureAssetsInNamespace(config); err != nil {
 				webhookLog.Error(err, "failed to add assets to namespace for ca injection")
 				return admission.Errored(http.StatusInternalServerError, err)
 			}

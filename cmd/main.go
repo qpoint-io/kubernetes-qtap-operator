@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"path/filepath"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -66,6 +67,13 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	// read the namespace of this operator
+	namespace, err := os.ReadFile(filepath.Join("/var/run/secrets/kubernetes.io/serviceaccount", "namespace"))
+	if err != nil {
+		setupLog.Error(err, "unable to read operator namespace")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -92,9 +100,10 @@ func main() {
 	// register admission webhook for pods
 	mgr.GetWebhookServer().Register("/mutate-v1-pod", &webhook.Admission{
 		Handler: &qtapv1.Webhook{
-			Development: true,
+			Namespace:   string(namespace),
 			ApiClient:   mgr.GetClient(),
 			Decoder:     admission.NewDecoder(mgr.GetScheme()),
+			Development: true,
 		},
 	})
 

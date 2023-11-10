@@ -1,3 +1,15 @@
+# Install ca-certs on ubuntu
+FROM ubuntu as ubuntu-ca-base
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Fedora includes ca-certs by default
+FROM fedora as fedora-ca-base
+
+# Alpine includes ca-certs by default
+FROM alpine as alpine-ca-base
+
 # Build the manager binary
 FROM golang:1.21 as builder
 ARG TARGETOS
@@ -14,6 +26,11 @@ RUN go mod download
 # Copy the go source
 COPY cmd/main.go cmd/main.go
 COPY api/ api/
+
+# Copy the ca-certificates from the base distros
+COPY --from=ubuntu-ca-base /etc/ssl/certs/ca-certificates.crt api/v1/assets/ubuntu-ca-certificates.crt
+COPY --from=fedora-ca-base /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem api/v1/assets/fedora-ca-bundle.crt
+COPY --from=alpine-ca-base /etc/ssl/certs/ca-certificates.crt api/v1/assets/alpine-cert.pem
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
