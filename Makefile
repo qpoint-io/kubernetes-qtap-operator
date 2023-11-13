@@ -54,6 +54,10 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+.PHONY: helm-chart
+helm-chart: manifests kustomize helmify ## Generate a helm chart from configuration
+	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/kubernetes-qtap-operator -generate-defaults
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...
@@ -200,6 +204,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 AIR ?= $(LOCALBIN)/air
+HELMIFY ?= $(LOCALBIN)/helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
@@ -230,12 +235,7 @@ air: $(AIR) ## Download air locally if necessary.
 $(AIR): $(LOCALBIN)
 	test -s $(LOCALBIN)/air || GOBIN=$(LOCALBIN) go install github.com/cosmtrek/air@latest
 
-HELMIFY ?= $(LOCALBIN)/helmify
-
 .PHONY: helmify
 helmify: $(HELMIFY) ## Download helmify locally if necessary.
 $(HELMIFY): $(LOCALBIN)
 	test -s $(LOCALBIN)/helmify || GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@latest
-
-helm: manifests kustomize helmify
-	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/kubernetes-qtap-operator -generate-defaults
