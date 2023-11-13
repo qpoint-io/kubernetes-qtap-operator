@@ -56,7 +56,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 
 .PHONY: helm-chart
 helm-chart: manifests kustomize helmify ## Generate a helm chart from configuration
-	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/kubernetes-qtap-operator -generate-defaults
+	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/qtap-operator -generate-defaults
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
