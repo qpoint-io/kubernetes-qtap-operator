@@ -2,11 +2,11 @@ name: Docker Image CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
     tags:
-      - "v*"
+      - 'v*'
   pull_request:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   build:
@@ -35,7 +35,7 @@ jobs:
           tags: |
             type=sha
             type=raw,value=branch-${{ env.REF_NAME }},enable=${{ env.REF_NAME != 'main' }}
-            type=raw,value=release-${{ env.REF_NAME }},enable=${{ startsWith(env.REF_NAME, 'v') }}
+            type=raw,value=${{ env.REF_NAME }},enable=${{ startsWith(env.REF_NAME, 'v') }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
