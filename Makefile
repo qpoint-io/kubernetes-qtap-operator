@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= qtap-controller
+IMG ?= us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-operator
 TAG ?= latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
@@ -237,4 +237,4 @@ $(HELMIFY): $(LOCALBIN)
 	test -s $(LOCALBIN)/helmify || GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@latest
 
 helm: manifests kustomize helmify
-	$(KUSTOMIZE) build config/default | $(HELMIFY)
+	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/kubernetes-qtap-operator -generate-defaults
