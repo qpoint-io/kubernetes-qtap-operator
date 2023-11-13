@@ -1,7 +1,8 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= qtap-controller
+IMG ?= us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-operator
 TAG ?= latest
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
@@ -53,6 +54,10 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+.PHONY: helm-chart
+helm-chart: manifests kustomize helmify ## Generate a helm chart from configuration
+	$(KUSTOMIZE) build config/default | $(HELMIFY) deploy/charts/kubernetes-qtap-operator -generate-defaults
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...
@@ -83,15 +88,15 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: kind-create
 kind-create: ## Bootstraps a kind cluster for local development
-	@kind get clusters | grep -qw "^${IMG}$$" || kind create cluster --name ${IMG}
+	@kind get clusters | grep -qw "^qtap-controller$$" || kind create cluster --name qtap-controller
 
 .PHONY: kind-delete
 kind-delete: ## Tears down a kind cluster for local development
-	@kind delete cluster --name ${IMG}
+	@kind delete cluster --name qtap-controller
 
 .PHONY: kind-upload
 kind-upload: ## Uploads the docker image into the kind cluster
-	@kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name ${IMG}
+	@kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name qtap-controller
 
 .PHONY: kind-rollout
 kind-rollout: ## Creates a new rollout with the newest image
@@ -199,6 +204,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 AIR ?= $(LOCALBIN)/air
+HELMIFY ?= $(LOCALBIN)/helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.2.1
@@ -229,12 +235,7 @@ air: $(AIR) ## Download air locally if necessary.
 $(AIR): $(LOCALBIN)
 	test -s $(LOCALBIN)/air || GOBIN=$(LOCALBIN) go install github.com/cosmtrek/air@latest
 
-HELMIFY ?= $(LOCALBIN)/helmify
-
 .PHONY: helmify
 helmify: $(HELMIFY) ## Download helmify locally if necessary.
 $(HELMIFY): $(LOCALBIN)
 	test -s $(LOCALBIN)/helmify || GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@latest
-
-helm: manifests kustomize helmify
-	$(KUSTOMIZE) build config/default | $(HELMIFY)
