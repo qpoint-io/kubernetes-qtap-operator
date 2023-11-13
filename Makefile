@@ -2,6 +2,7 @@
 # Image URL to use all building/pushing image targets
 IMG ?= us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-operator
 TAG ?= latest
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
@@ -83,15 +84,15 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: kind-create
 kind-create: ## Bootstraps a kind cluster for local development
-	@kind get clusters | grep -qw "^${IMG}$$" || kind create cluster --name ${IMG}
+	@kind get clusters | grep -qw "^qtap-controller$$" || kind create cluster --name qtap-controller
 
 .PHONY: kind-delete
 kind-delete: ## Tears down a kind cluster for local development
-	@kind delete cluster --name ${IMG}
+	@kind delete cluster --name qtap-controller
 
 .PHONY: kind-upload
 kind-upload: ## Uploads the docker image into the kind cluster
-	@kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name ${IMG}
+	@kind load docker-image ${IMG}:${TAG} ${IMG}:${TAG} --name qtap-controller
 
 .PHONY: kind-rollout
 kind-rollout: ## Creates a new rollout with the newest image
