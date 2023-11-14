@@ -69,6 +69,11 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 		})
 	}
 
+	// ensure init containers has been initialized
+	if pod.Spec.InitContainers == nil {
+		pod.Spec.InitContainers = make([]corev1.Container, 0)
+	}
+
 	// append to the list
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers, initContainer)
 
