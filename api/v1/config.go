@@ -57,10 +57,15 @@ func (c *Config) Init(pod *corev1.Pod) error {
 			return fmt.Errorf("marshaling the configmap data as yaml: %w", err)
 		}
 
-		// let's apply the default annotations to the pod (for transparency to the admin)
-		for key, value := range defaultAnnotations {
-			if _, exists := pod.Annotations[key]; !exists {
-				pod.Annotations[key] = value
+		if pod.Annotations == nil {
+			// if there are no annotations, just assign the defaults
+			pod.Annotations = defaultAnnotations
+		} else {
+			// let's apply the default annotations to the pod (for transparency to the admin)
+			for key, value := range defaultAnnotations {
+				if _, exists := pod.Annotations[key]; !exists {
+					pod.Annotations[key] = value
+				}
 			}
 		}
 

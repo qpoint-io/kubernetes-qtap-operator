@@ -38,6 +38,11 @@ func MutateCaInjection(pod *corev1.Pod, config *Config) error {
 		},
 	}
 
+	// ensure volumes has been initialized
+	if pod.Spec.Volumes == nil {
+		pod.Spec.Volumes = make([]corev1.Volume, 0)
+	}
+
 	// add the volumes to the pod
 	pod.Spec.Volumes = append(pod.Spec.Volumes, configMapVolume)
 
@@ -67,6 +72,12 @@ func MutateCaInjection(pod *corev1.Pod, config *Config) error {
 
 	// add mounts to the containers
 	for i := range pod.Spec.Containers {
+		// ensure volume mounts have been initialized
+		if pod.Spec.Containers[i].VolumeMounts == nil {
+			pod.Spec.Containers[i].VolumeMounts = make([]corev1.VolumeMount, 0)
+		}
+
+		// append
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMounts...)
 	}
 
