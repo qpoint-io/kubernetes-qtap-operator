@@ -21,6 +21,9 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
+			SeccompProfile: &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeUnconfined,
+			},
 		},
 	}
 
