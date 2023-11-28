@@ -8,6 +8,12 @@ import (
 
 const INIT_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init"
 
+var (
+	RUN_AS_USER     int64 = 0     // The root user
+	RUN_AS_GROUP    int64 = 0     // The root group
+	RUN_AS_NON_ROOT       = false // Allow running as root
+)
+
 func MutateEgress(pod *corev1.Pod, config *Config) error {
 	// fetch the init image tag
 	tag := config.Get("egress-init-tag")
@@ -21,6 +27,11 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
+			// The init container needs to run as root as it modifies the network
+			// for the pod
+			RunAsUser:    &RUN_AS_USER,
+			RunAsGroup:   &RUN_AS_GROUP,
+			RunAsNonRoot: &RUN_AS_NON_ROOT,
 		},
 	}
 
