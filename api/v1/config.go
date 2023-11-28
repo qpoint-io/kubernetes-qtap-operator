@@ -23,28 +23,34 @@ type Config struct {
 }
 
 func (c *Config) Init(pod *corev1.Pod) error {
-	// check to see if an annotation is set on the pod to enable egress
-	egress, exists := pod.Annotations["qpoint.io/egress"]
-	if exists && egress == "enabled" {
+	// first check if the namespace has the label. If it does then assume that egress is enabled
+	namespace := &corev1.Namespace{}
+	if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: c.Namespace}, namespace); err != nil {
+		return fmt.Errorf("fetching namespace '%s' from the api: %w", c.Namespace, err)
+	}
+
+	// if the namespace is labeled, then we enable. A pod annotation override will be checked below
+	if namespace.Labels["qpoint-egress"] == "enabled" {
 		c.Enabled = true
 	}
 
-	// if we're not enabled yet, let's check the namespace
-	if !c.Enabled {
-		namespace := &corev1.Namespace{}
-		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: c.Namespace}, namespace); err != nil {
-			return fmt.Errorf("fetching namespace '%s' from the api: %w", c.Namespace, err)
+	// check to see if an annotation is set on the pod to enable or disable egress while also verifying
+	// if it was enabled for the namespace but needs to be disabled for the pod
+	egress, exists := pod.Annotations["qpoint.io/egress"]
+
+	// if the annotation doesn't exist nothing else needs to be checked
+	if exists {
+		if c.Enabled && egress != "enabled" {
+			c.Enabled = false
 		}
 
-		// if the namespace is labeled, then we enable
-		if namespace.Labels["qpoint-egress"] == "enabled" {
+		if !c.Enabled && egress == "enabled" {
 			c.Enabled = true
 		}
 	}
 
 	// if we're enabled
 	if c.Enabled {
-
 		// let's fetch the default settings in the configmap
 		configMap := &corev1.ConfigMap{}
 		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: ANNOTATIONS_CONFIGMAP, Namespace: c.OperatorNamespace}, configMap); err != nil {
