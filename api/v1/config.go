@@ -10,9 +10,18 @@ import (
 )
 
 const ANNOTATIONS_CONFIGMAP = "qtap-operator-default-pod-annotations-configmap"
+const NAMESPACE_EGRESS_LABEL = "qpoint-egress"
+const NAMESPACE_INJECTION_LABEL = "qpoint-injection"
+const POD_EGRESS_ANNOTATION = "qpoint.io/egress"
+const POD_INJECTION_LABEL = "sidecar.qpoint.io/inject"
+const ENABLED = "enabled"
+const DISABLED = "disabled"
+const TRUE = "true"
+const FALSE = "false"
 
 type Config struct {
-	Enabled           bool
+	EnabledEgress     bool // Egress routing is enabled
+	EnabledInjection  bool // Sidecar injection is enabled
 	InjectCa          bool
 	Namespace         string
 	OperatorNamespace string
@@ -22,6 +31,12 @@ type Config struct {
 	annotations map[string]string
 }
 
+// Config scenarios:
+// a) Egress routing is enabled and gateway is disabled via the namespace label or pod annotation. This means that the egress traffic is being routed to the qtap service running somewhere else in the cluster.
+// b) Egress routing is enabled and gateway is enabled via the namespace label or pod annotation. This means that the egress traffic is being routed through the qtap sidecar proxy.
+//
+// Egress routing is always controlled by the qtap-init container which manipulates iptables rules for routing egress traffic to one of the above qtap setups.
+
 func (c *Config) Init(pod *corev1.Pod) error {
 	// first check if the namespace has the label. If it does then assume that egress is enabled
 	namespace := &corev1.Namespace{}
@@ -29,28 +44,27 @@ func (c *Config) Init(pod *corev1.Pod) error {
 		return fmt.Errorf("fetching namespace '%s' from the api: %w", c.Namespace, err)
 	}
 
-	// if the namespace is labeled, then we enable. A pod annotation override will be checked below
-	if namespace.Labels["qpoint-egress"] == "enabled" {
-		c.Enabled = true
+	// if the namespace is labeled for egress, then we enable. A pod annotation override will be checked below
+	if namespace.Labels[NAMESPACE_EGRESS_LABEL] == ENABLED {
+		c.EnabledEgress = true
+	} else if namespace.Labels[NAMESPACE_EGRESS_LABEL] == DISABLED {
+		c.EnabledEgress = false
 	}
 
 	// check to see if an annotation is set on the pod to enable or disable egress while also verifying
-	// if it was enabled for the namespace but needs to be disabled for the pod
-	egress, exists := pod.Annotations["qpoint.io/egress"]
-
-	// if the annotation doesn't exist nothing else needs to be checked
-	if exists {
-		if c.Enabled && egress != "enabled" {
-			c.Enabled = false
+	// if it was enabled for the namespace but needs to be disabled for the pod. If the annotation doesn't exist nothing else needs to be checked
+	if egress, exists := pod.Annotations[POD_EGRESS_ANNOTATION]; exists {
+		if c.EnabledEgress && egress == DISABLED {
+			c.EnabledEgress = false
 		}
 
-		if !c.Enabled && egress == "enabled" {
-			c.Enabled = true
+		if !c.EnabledEgress && egress == ENABLED {
+			c.EnabledEgress = true
 		}
 	}
 
 	// if we're enabled
-	if c.Enabled {
+	if c.EnabledEgress {
 		// let's fetch the default settings in the configmap
 		configMap := &corev1.ConfigMap{}
 		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: ANNOTATIONS_CONFIGMAP, Namespace: c.OperatorNamespace}, configMap); err != nil {
@@ -77,16 +91,35 @@ func (c *Config) Init(pod *corev1.Pod) error {
 
 		// and store a direct reference to the annotations for config
 		c.annotations = pod.Annotations
+
+		// if the namespace is labeled for injection, then we enable. A pod annotation override will be checked below
+		if namespace.Labels[NAMESPACE_INJECTION_LABEL] == ENABLED {
+			c.EnabledInjection = true
+		} else if namespace.Labels[NAMESPACE_INJECTION_LABEL] == DISABLED {
+			c.EnabledInjection = false
+		}
+
+		// check to see if an label is set on the pod to enable or disable injection while also verifying
+		// if it was enabled for the namespace but needs to be disabled for the pod. If the label doesn't exist nothing else needs to be checked
+		if inject, exists := pod.Labels[POD_INJECTION_LABEL]; exists {
+			if c.EnabledInjection && inject == FALSE {
+				c.EnabledInjection = false
+			}
+
+			if !c.EnabledInjection && inject == TRUE {
+				c.EnabledInjection = true
+			}
+		}
 	}
 
 	// determine if we should inject the certificate authority
-	if c.Get("inject-ca") == "true" {
+	if c.GetAnnotation("inject-ca") == "true" {
 		c.InjectCa = true
 	}
 
 	return nil
 }
 
-func (c *Config) Get(key string) string {
+func (c *Config) GetAnnotation(key string) string {
 	return c.annotations[fmt.Sprintf("qpoint.io/%s", key)]
 }
