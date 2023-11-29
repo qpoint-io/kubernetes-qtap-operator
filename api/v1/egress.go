@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const INIT_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init"
@@ -90,6 +91,20 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 }
 
 func MutateInjection(pod *corev1.Pod, config *Config) error {
+	// in order to start qtap a token is needed. This token can be found at a defined secret name token
+	secret := &corev1.Secret{}
+	if err := config.Client.Get(config.Ctx, client.ObjectKey{Name: "token", Namespace: config.OperatorNamespace}, secret); err != nil {
+		return fmt.Errorf("fetching secret '%s' at namespace '%s' from the api: %w", "token", config.OperatorNamespace, err)
+	}
+
+	tokenBytes, exists := secret.Data["token"]
+	if !exists {
+		return fmt.Errorf("token not found in secret '%s'", "token")
+	}
+
+	// convert the []byte data to a string
+	token := string(tokenBytes)
+
 	// fetch the init image tag
 	tag := config.GetAnnotation("qtap-tag")
 
@@ -98,7 +113,12 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 		Name:  "qtap",
 		Image: fmt.Sprintf("%s:%s", QTAP_IMAGE, tag),
 		Args:  []string{"gateway"},
-		Env:   []corev1.EnvVar{},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "TOKEN",
+				Value: token,
+			},
+		},
 		StartupProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
