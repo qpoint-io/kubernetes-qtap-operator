@@ -191,7 +191,7 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 	}
 
 	// HTTP_LISTEN
-	if httpListen := config.GetAnnotation("https-listen"); httpListen != "" {
+	if httpListen := config.GetAnnotation("http-listen"); httpListen != "" {
 		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
 			Name:  "HTTP_LISTEN",
 			Value: httpListen,
