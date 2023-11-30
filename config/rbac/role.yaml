@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/created-by: qtap-operator
     app.kubernetes.io/part-of: qtap-operator
     app.kubernetes.io/managed-by: kustomize
-  name: manager-role
+  name: manager-cluster-role
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -16,6 +16,25 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "list", "watch"]
-- apiGroups: [""] 
+- apiGroups: [""]
   resources: ["configmaps"]
   verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: role
+    app.kubernetes.io/instance: manager-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: qtap-operator
+    app.kubernetes.io/part-of: qtap-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: manager-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
