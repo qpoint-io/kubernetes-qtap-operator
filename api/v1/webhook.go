@@ -33,11 +33,12 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 
 	webhookLog.Info("Pod mutation requested")
 
-	// initilize a config with defaults
+	// initialize a config with defaults
 	config := &Config{
 		Namespace:         req.Namespace,
 		OperatorNamespace: w.Namespace,
-		Enabled:           false,
+		EnabledEgress:     false,
+		EnabledInjection:  false,
 		InjectCa:          false,
 		Client:            w.ApiClient,
 		Ctx:               ctx,
@@ -49,7 +50,7 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	if config.Enabled {
+	if config.EnabledEgress {
 		webhookLog.Info("Qpoint egress enabled, mutating...")
 
 		// mutate the pod to include egress through the gateway
@@ -72,6 +73,18 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 
 	} else {
 		webhookLog.Info("Qpoint egress not enabled, ignoring...")
+	}
+
+	if config.EnabledInjection {
+		webhookLog.Info("Qpoint injection enabled, mutating...")
+
+		// mutate the pod to include the sidecar
+		if err := MutateInjection(pod, config); err != nil {
+			webhookLog.Error(err, "failed to mutate pod for injection")
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+	} else {
+		webhookLog.Info("Qpoint injection not enabled, ignoring...")
 	}
 
 	marshaledPod, err := json.Marshal(pod)

@@ -4,19 +4,22 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const INIT_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init"
+const QTAP_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/qtap"
 
 var (
-	RUN_AS_USER     int64 = 0     // The root user
-	RUN_AS_GROUP    int64 = 0     // The root group
-	RUN_AS_NON_ROOT       = false // Allow running as root
+	ROOT_USER       int64 = 0 // The root user
+	ROOT_GROUP      int64 = 0 // The root group
+	RUN_AS_NON_ROOT       = false
 )
 
 func MutateEgress(pod *corev1.Pod, config *Config) error {
 	// fetch the init image tag
-	tag := config.Get("egress-init-tag")
+	tag := config.GetAnnotation("egress-init-tag")
 
 	// create an init container
 	initContainer := corev1.Container{
@@ -29,15 +32,14 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 			},
 			// The init container needs to run as root as it modifies the network
 			// for the pod
-			RunAsUser:    &RUN_AS_USER,
-			RunAsGroup:   &RUN_AS_GROUP,
-			RunAsNonRoot: &RUN_AS_NON_ROOT,
+			RunAsUser:    &ROOT_USER,
+			RunAsGroup:   &ROOT_GROUP,
+			RunAsNonRoot: &RUN_AS_NON_ROOT, // Allow running as root
 		},
 	}
 
 	// TO_ADDR
-	toAddr := config.Get("egress-to-addr")
-	if toAddr != "" {
+	if toAddr := config.GetAnnotation("egress-to-addr"); toAddr != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "TO_ADDR",
 			Value: toAddr,
@@ -45,8 +47,7 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 	}
 
 	// TO_DOMAIN
-	toDomain := config.Get("egress-to-domain")
-	if toAddr == "" && toDomain != "" {
+	if toDomain := config.GetAnnotation("egress-to-domain"); toDomain != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "TO_DOMAIN",
 			Value: toDomain,
@@ -54,8 +55,7 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 	}
 
 	// PORT_MAPPING
-	portMapping := config.Get("egress-port-mapping")
-	if portMapping != "" {
+	if portMapping := config.GetAnnotation("egress-port-mapping"); portMapping != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "PORT_MAPPING",
 			Value: portMapping,
@@ -63,8 +63,7 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 	}
 
 	// ACCEPT_UIDS
-	acceptUids := config.Get("egress-accept-uids")
-	if acceptUids != "" {
+	if acceptUids := config.GetAnnotation("egress-accept-uids"); acceptUids != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "ACCEPT_UIDS",
 			Value: acceptUids,
@@ -72,8 +71,7 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 	}
 
 	// ACCEPT_GIDS
-	acceptGids := config.Get("egress-accept-gids")
-	if acceptGids != "" {
+	if acceptGids := config.GetAnnotation("egress-accept-gids"); acceptGids != "" {
 		initContainer.Env = append(initContainer.Env, corev1.EnvVar{
 			Name:  "ACCEPT_GIDS",
 			Value: acceptGids,
@@ -87,6 +85,161 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 
 	// append to the list
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers, initContainer)
+
+	// gtg
+	return nil
+}
+
+func MutateInjection(pod *corev1.Pod, config *Config) error {
+	// in order to start qtap a token is needed. This token can be found at a defined secret name token
+	secret := &corev1.Secret{}
+	if err := config.Client.Get(config.Ctx, client.ObjectKey{Name: "token", Namespace: config.OperatorNamespace}, secret); err != nil {
+		return fmt.Errorf("fetching secret '%s' at namespace '%s' from the api: %w", "token", config.OperatorNamespace, err)
+	}
+
+	tokenBytes, exists := secret.Data["token"]
+	if !exists {
+		return fmt.Errorf("token not found in secret '%s'", "token")
+	}
+
+	// convert the []byte data to a string
+	token := string(tokenBytes)
+
+	// fetch the init image tag
+	tag := config.GetAnnotation("qtap-tag")
+
+	// create an init container
+	qtapContainer := corev1.Container{
+		Name:  "qtap",
+		Image: fmt.Sprintf("%s:%s", QTAP_IMAGE, tag),
+		Args:  []string{"gateway"},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "TOKEN",
+				Value: token,
+			},
+		},
+		StartupProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/readyz",
+					Port: intstr.IntOrString{
+						IntVal: 8080,
+					},
+				},
+			},
+			InitialDelaySeconds: 3,
+			PeriodSeconds:       5,
+			TimeoutSeconds:      2,
+			SuccessThreshold:    1,
+			FailureThreshold:    20,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/readyz",
+					Port: intstr.IntOrString{
+						IntVal: 8080,
+					},
+				},
+			},
+			InitialDelaySeconds: 3,
+			PeriodSeconds:       5,
+			TimeoutSeconds:      2,
+			SuccessThreshold:    1,
+			FailureThreshold:    1,
+		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/healthz",
+					Port: intstr.IntOrString{
+						IntVal: 8080,
+					},
+				},
+			},
+			InitialDelaySeconds: 3,
+			PeriodSeconds:       10,
+			TimeoutSeconds:      2,
+			SuccessThreshold:    1,
+			FailureThreshold:    3,
+		},
+	}
+
+	// LOG_LEVEL
+	if logLevel := config.GetAnnotation("log-level"); logLevel != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "LOG_LEVEL",
+			Value: logLevel,
+		})
+	}
+
+	// LOG_ENCODING
+	if logEncoding := config.GetAnnotation("log-encoding"); logEncoding != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "LOG_ENCODING",
+			Value: logEncoding,
+		})
+	}
+
+	// LOG_CALLER
+	if logCaller := config.GetAnnotation("log-caller"); logCaller != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "LOG_CALLER",
+			Value: logCaller,
+		})
+	}
+
+	// HTTP_LISTEN
+	if httpListen := config.GetAnnotation("http-listen"); httpListen != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "HTTP_LISTEN",
+			Value: httpListen,
+		})
+	}
+
+	// HTTPS_LISTEN
+	if httpsListen := config.GetAnnotation("https-listen"); httpsListen != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "HTTPS_LISTEN",
+			Value: httpsListen,
+		})
+	}
+
+	// TCP_LISTEN
+	if tcpListen := config.GetAnnotation("tcp-listen"); tcpListen != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "TCP_LISTEN",
+			Value: tcpListen,
+		})
+	}
+
+	// BLOCK_UNKNOWN
+	if blockUnknown := config.GetAnnotation("block-unknown"); blockUnknown != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "BLOCK_UNKNOWN",
+			Value: blockUnknown,
+		})
+	}
+
+	// ENVOY_LOG_LEVEL
+	if envoyLogLevel := config.GetAnnotation("envoy-log-level"); envoyLogLevel != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "ENVOY_LOG_LEVEL",
+			Value: envoyLogLevel,
+		})
+	}
+
+	// DNS_LOOKUP_FAMILY
+	if dnsLookupFamily := config.GetAnnotation("dns-lookup-family"); dnsLookupFamily != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "DNS_LOOKUP_FAMILY",
+			Value: dnsLookupFamily,
+		})
+	}
+
+	// append to the list
+	pod.Spec.Containers = append(pod.Spec.Containers, qtapContainer)
 
 	// gtg
 	return nil

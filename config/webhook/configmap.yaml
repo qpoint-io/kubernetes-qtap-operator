@@ -1,10 +1,26 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: default-pod-annotations-configmap
+  name: gateway-pod-annotations-configmap
   namespace: system
 data:
   annotations.yaml: |
     qpoint.io/inject-ca: "true"
-    qpoint.io/egress-init-tag: "0.0.5"
+    qpoint.io/egress-init-tag: "v0.0.7"
     qpoint.io/egress-to-domain: "qtap-gateway.qpoint.svc.cluster.local"
+    qpoint.io/egress-port-mapping: "10080:80,10443:443"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: injection-pod-annotations-configmap
+  namespace: system
+data:
+  annotations.yaml: |
+    qpoint.io/inject-ca: "true"
+    qpoint.io/egress-init-tag: "v0.0.7"
+    qpoint.io/qtap-tag: "v0.0.10"
+    qpoint.io/egress-port-mapping: "10080:80,10443:443,10000:"
+    qpoint.io/log-level: "info"
+    qpoint.io/block-unknown: "false"
+    qpoint.io/dns-lookup-family: "V4_ONLY"
