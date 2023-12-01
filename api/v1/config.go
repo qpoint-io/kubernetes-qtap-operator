@@ -9,20 +9,22 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-const GATEWAY_ANNOTATIONS_CONFIGMAP = "qtap-operator-gateway-pod-annotations-configmap"
-const INJECTION_ANNOTATIONS_CONFIGMAP = "qtap-operator-injection-pod-annotations-configmap"
+const SERVICE_ANNOTATIONS_CONFIGMAP = "qtap-operator-service-pod-annotations-configmap"
+const INJECT_ANNOTATIONS_CONFIGMAP = "qtap-operator-inject-pod-annotations-configmap"
 const NAMESPACE_EGRESS_LABEL = "qpoint-egress"
-const NAMESPACE_INJECTION_LABEL = "qpoint-injection"
-const POD_EGRESS_ANNOTATION = "qpoint.io/egress"
-const POD_INJECTION_LABEL = "sidecar.qpoint.io/inject"
-const ENABLED = "enabled"
-const DISABLED = "disabled"
-const TRUE = "true"
-const FALSE = "false"
+const POD_EGRESS_LABEL = "qpoint.io/egress"
+
+type EgressType string
+
+const (
+	EgressType_UNDEFINED EgressType = "undefined"
+	EgressType_DISABLED  EgressType = "disabled"
+	EgressType_SERVICE   EgressType = "service"
+	EgressType_INJECT    EgressType = "inject"
+)
 
 type Config struct {
-	EnabledEgress     bool // Egress routing is enabled
-	EnabledInjection  bool // Sidecar injection is enabled
+	EgressType        EgressType
 	InjectCa          bool
 	Namespace         string
 	OperatorNamespace string
@@ -33,8 +35,8 @@ type Config struct {
 }
 
 // Config scenarios:
-// a) Egress routing is enabled and gateway is disabled via the namespace label or pod annotation. This means that the egress traffic is being routed to the qtap service running somewhere else in the cluster.
-// b) Egress routing is enabled and gateway is enabled via the namespace label or pod annotation. This means that the egress traffic is being routed through the qtap sidecar proxy.
+// a) Egress routing is enabled and gateway is disabled via the namespace label or pod label. This means that the egress traffic is being routed to the qtap service running somewhere else in the cluster.
+// b) Egress routing is enabled and gateway is enabled via the namespace label or pod label. This means that the egress traffic is being routed through the qtap sidecar proxy.
 //
 // Egress routing is always controlled by the qtap-init container which manipulates iptables rules for routing egress traffic to one of the above qtap setups.
 
@@ -45,50 +47,41 @@ func (c *Config) Init(pod *corev1.Pod) error {
 		return fmt.Errorf("fetching namespace '%s' from the api: %w", c.Namespace, err)
 	}
 
-	// if the namespace is labeled for egress, then we enable. A pod annotation override will be checked below
-	if namespace.Labels[NAMESPACE_EGRESS_LABEL] == ENABLED {
-		c.EnabledEgress = true
-	} else if namespace.Labels[NAMESPACE_EGRESS_LABEL] == DISABLED {
-		c.EnabledEgress = false
+	namespaceEgressType := EgressType_UNDEFINED
+	configMapName := ""
+
+	switch v := namespace.Labels[NAMESPACE_EGRESS_LABEL]; EgressType(v) {
+	case EgressType_DISABLED:
+		return nil
+	case EgressType_SERVICE:
+		namespaceEgressType = EgressType_SERVICE
+		configMapName = SERVICE_ANNOTATIONS_CONFIGMAP
+	case EgressType_INJECT:
+		namespaceEgressType = EgressType_INJECT
+		configMapName = INJECT_ANNOTATIONS_CONFIGMAP
 	}
 
-	// check to see if an annotation is set on the pod to enable or disable egress while also verifying
-	// if it was enabled for the namespace but needs to be disabled for the pod. If the annotation doesn't exist nothing else needs to be checked
-	if egress, exists := pod.Annotations[POD_EGRESS_ANNOTATION]; exists {
-		if c.EnabledEgress && egress == DISABLED {
-			c.EnabledEgress = false
-		}
+	podEgressType := EgressType_UNDEFINED
 
-		if !c.EnabledEgress && egress == ENABLED {
-			c.EnabledEgress = true
-		}
+	// order matters as pods override namespaces
+
+	switch v := pod.Labels[POD_EGRESS_LABEL]; EgressType(v) {
+	case EgressType_DISABLED:
+		return nil
+	case EgressType_SERVICE:
+		podEgressType = EgressType_SERVICE
+		configMapName = SERVICE_ANNOTATIONS_CONFIGMAP
+	case EgressType_INJECT:
+		podEgressType = EgressType_INJECT
+		configMapName = INJECT_ANNOTATIONS_CONFIGMAP
 	}
 
-	// if we're enabled
-	if c.EnabledEgress {
-		configMapName := GATEWAY_ANNOTATIONS_CONFIGMAP
+	// egress is undefined for the entire namespace (regardless of what the pod label says) or pod and thus return immediately
+	if namespaceEgressType == EgressType_UNDEFINED && podEgressType == EgressType_UNDEFINED {
+		return nil
+	}
 
-		// if the namespace is labeled for injection, then we enable. A pod annotation override will be checked below
-		if namespace.Labels[NAMESPACE_INJECTION_LABEL] == ENABLED {
-			c.EnabledInjection = true
-			configMapName = INJECTION_ANNOTATIONS_CONFIGMAP
-		} else if namespace.Labels[NAMESPACE_INJECTION_LABEL] == DISABLED {
-			c.EnabledInjection = false
-		}
-
-		// check to see if an label is set on the pod to enable or disable injection while also verifying
-		// if it was enabled for the namespace but needs to be disabled for the pod. If the label doesn't exist nothing else needs to be checked
-		if inject, exists := pod.Labels[POD_INJECTION_LABEL]; exists {
-			if c.EnabledInjection && inject == FALSE {
-				c.EnabledInjection = false
-			}
-
-			if !c.EnabledInjection && inject == TRUE {
-				c.EnabledInjection = true
-				configMapName = INJECTION_ANNOTATIONS_CONFIGMAP
-			}
-		}
-
+	if configMapName != "" {
 		// let's fetch the default settings in the configmap
 		configMap := &corev1.ConfigMap{}
 		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: configMapName, Namespace: c.OperatorNamespace}, configMap); err != nil {
