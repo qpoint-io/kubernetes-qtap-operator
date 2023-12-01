@@ -9,7 +9,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-const ANNOTATIONS_CONFIGMAP = "qtap-operator-default-pod-annotations-configmap"
+const GATEWAY_ANNOTATIONS_CONFIGMAP = "qtap-operator-gateway-pod-annotations-configmap"
+const INJECTION_ANNOTATIONS_CONFIGMAP = "qtap-operator-injection-pod-annotations-configmap"
 const NAMESPACE_EGRESS_LABEL = "qpoint-egress"
 const NAMESPACE_INJECTION_LABEL = "qpoint-injection"
 const POD_EGRESS_ANNOTATION = "qpoint.io/egress"
@@ -65,10 +66,33 @@ func (c *Config) Init(pod *corev1.Pod) error {
 
 	// if we're enabled
 	if c.EnabledEgress {
+		configMapName := GATEWAY_ANNOTATIONS_CONFIGMAP
+
+		// if the namespace is labeled for injection, then we enable. A pod annotation override will be checked below
+		if namespace.Labels[NAMESPACE_INJECTION_LABEL] == ENABLED {
+			c.EnabledInjection = true
+			configMapName = INJECTION_ANNOTATIONS_CONFIGMAP
+		} else if namespace.Labels[NAMESPACE_INJECTION_LABEL] == DISABLED {
+			c.EnabledInjection = false
+		}
+
+		// check to see if an label is set on the pod to enable or disable injection while also verifying
+		// if it was enabled for the namespace but needs to be disabled for the pod. If the label doesn't exist nothing else needs to be checked
+		if inject, exists := pod.Labels[POD_INJECTION_LABEL]; exists {
+			if c.EnabledInjection && inject == FALSE {
+				c.EnabledInjection = false
+			}
+
+			if !c.EnabledInjection && inject == TRUE {
+				c.EnabledInjection = true
+				configMapName = INJECTION_ANNOTATIONS_CONFIGMAP
+			}
+		}
+
 		// let's fetch the default settings in the configmap
 		configMap := &corev1.ConfigMap{}
-		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: ANNOTATIONS_CONFIGMAP, Namespace: c.OperatorNamespace}, configMap); err != nil {
-			return fmt.Errorf("fetching configmap '%s' at namespace '%s' from the api: %w", ANNOTATIONS_CONFIGMAP, c.OperatorNamespace, err)
+		if err := c.Client.Get(c.Ctx, client.ObjectKey{Name: configMapName, Namespace: c.OperatorNamespace}, configMap); err != nil {
+			return fmt.Errorf("fetching configmap '%s' at namespace '%s' from the api: %w", configMapName, c.OperatorNamespace, err)
 		}
 
 		// unmarshal the data as yaml
@@ -91,25 +115,6 @@ func (c *Config) Init(pod *corev1.Pod) error {
 
 		// and store a direct reference to the annotations for config
 		c.annotations = pod.Annotations
-
-		// if the namespace is labeled for injection, then we enable. A pod annotation override will be checked below
-		if namespace.Labels[NAMESPACE_INJECTION_LABEL] == ENABLED {
-			c.EnabledInjection = true
-		} else if namespace.Labels[NAMESPACE_INJECTION_LABEL] == DISABLED {
-			c.EnabledInjection = false
-		}
-
-		// check to see if an label is set on the pod to enable or disable injection while also verifying
-		// if it was enabled for the namespace but needs to be disabled for the pod. If the label doesn't exist nothing else needs to be checked
-		if inject, exists := pod.Labels[POD_INJECTION_LABEL]; exists {
-			if c.EnabledInjection && inject == FALSE {
-				c.EnabledInjection = false
-			}
-
-			if !c.EnabledInjection && inject == TRUE {
-				c.EnabledInjection = true
-			}
-		}
 	}
 
 	// determine if we should inject the certificate authority
