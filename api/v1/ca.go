@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const QTAP_BUNDLE = "qtap-ca-bundle.crt"
-const QPOINT_ROOT_CA = "qpoint-qtap-ca.crt"
+const QTAP_BUNDLE = "qtap-ca-bundle.crt"    // final bundle includes all CAs (including Qpoint's CA)
+const QPOINT_ROOT_CA = "qpoint-qtap-ca.crt" // this is the Qpoint CA
 const DEFAULT_ENDPOINT = "https://api.qpoint.io"
 
 type Registration struct {
@@ -138,7 +138,7 @@ func MutateCaInjection(pod *corev1.Pod, config *Config) error {
 
 func EnsureAssetsInNamespace(config *Config) error {
 	// the goal is to ensure this exists already or we'll create it
-	qtapCaExists := false
+	qtapCaBundleExists := false
 
 	// qtap ca configmap reference
 	qtapCaConfigMap := &corev1.ConfigMap{}
@@ -150,11 +150,11 @@ func EnsureAssetsInNamespace(config *Config) error {
 			return fmt.Errorf("retrieving Qtap CA config map: %w", err)
 		}
 	} else {
-		qtapCaExists = true
+		qtapCaBundleExists = true
 	}
 
 	// if the qtap ca bundle already exists, we're gtg
-	if qtapCaExists {
+	if qtapCaBundleExists {
 		return nil
 	}
 
@@ -186,8 +186,9 @@ func EnsureAssetsInNamespace(config *Config) error {
 			} else {
 				return fmt.Errorf("missing configuration for Qpoint Root CA, check instructions")
 			}
+		} else {
+			return fmt.Errorf("retrieving Qtap CA config map: %w", err)
 		}
-		return fmt.Errorf("retrieving Qtap CA config map: %w", err)
 	}
 
 	// extract the root CA
