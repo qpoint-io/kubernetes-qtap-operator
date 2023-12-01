@@ -19,7 +19,7 @@ data:
   annotations.yaml: |
     qpoint.io/inject-ca: "true"
     qpoint.io/egress-init-tag: "v0.0.7"
-    qpoint.io/qtap-tag: "v0.0.9"
+    qpoint.io/qtap-tag: "v0.0.10"
     qpoint.io/egress-port-mapping: "10080:80,10443:443,10000:"
     qpoint.io/log-level: "info"
     qpoint.io/block-unknown: "false"
