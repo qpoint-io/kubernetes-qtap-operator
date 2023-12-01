@@ -12,7 +12,6 @@ helm install qtap-operator qpoint/qtap-operator --namespace qpoint
 
 Manual
 
-
 The pre-built Docker container can be found at us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-operator and uses the tag for the release <https://github.com/qpoint-io/kubernetes-qtap-operator/releases>. See <https://github.com/qpoint-io/helm-charts/blob/main/charts/qtap-operator/templates/deployment.yaml> for an example of a Deployment.
 
 ## Configure Egress
