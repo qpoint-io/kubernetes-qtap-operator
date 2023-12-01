@@ -70,6 +70,9 @@ spec:
         - /manager
         args:
         - --leader-elect
+        env:
+          - name: ENDPOINT
+            value: "https://api.qpoint.io"
         image: controller:latest
         imagePullPolicy: IfNotPresent
         name: manager

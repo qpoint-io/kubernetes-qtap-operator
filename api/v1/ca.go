@@ -2,7 +2,10 @@ package v1
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,6 +15,55 @@ import (
 
 const QTAP_BUNDLE = "qtap-ca-bundle.crt"
 const QPOINT_ROOT_CA = "qpoint-qtap-ca.crt"
+const DEFAULT_ENDPOINT = "https://api.qpoint.io"
+
+type Registration struct {
+	Ca string `json:"ca"`
+}
+
+type RegistrationResponse struct {
+	Registration Registration `json:"registration"`
+}
+
+func FetchRegistration(token string) (*Registration, error) {
+	endpoint := os.Getenv("ENDPOINT")
+	if endpoint == "" {
+		endpoint = DEFAULT_ENDPOINT
+	}
+
+	// make the API request
+	url := fmt.Sprintf("%s/qtap/registration", endpoint)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("initializing request: %w", err)
+	}
+
+	// set the bearer token
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// fetch the registration
+	client := http.DefaultClient
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching registration: %w", err)
+	}
+	defer res.Body.Close()
+
+	// check if the response was successful (status code 200)
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed, status %d", res.StatusCode)
+	}
+
+	// Deserialize the JSON response into the struct
+	var registration RegistrationResponse
+	err = json.NewDecoder(res.Body).Decode(&registration)
+	if err != nil {
+		return nil, fmt.Errorf("decoding JSON: %w", err)
+	}
+
+	// extract just the registration
+	return &registration.Registration, nil
+}
 
 //go:embed assets/build-ca.sh
 var buildCaScript string
@@ -108,10 +160,30 @@ func EnsureAssetsInNamespace(config *Config) error {
 
 	// we need to see if we have the qtap ca in the operator namespace
 	qpointRootCaConfigMap := &corev1.ConfigMap{}
-	qpointRootCaRef := client.ObjectKey{Namespace: config.OperatorNamespace, Name: QPOINT_ROOT_CA}
-	if err := config.Client.Get(config.Ctx, qpointRootCaRef, qpointRootCaConfigMap); err != nil {
+	if err := config.Client.Get(config.Ctx, client.ObjectKey{Namespace: config.OperatorNamespace, Name: QPOINT_ROOT_CA}, qpointRootCaConfigMap); err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("missing configmap for Qpoint Root CA, check instructions")
+			// the config map wasn't found and so we'll attempt to fetch the CA from the API
+			// this involves fetching the token secret for accessing the API
+			secret := &corev1.Secret{}
+			if err := config.Client.Get(config.Ctx, client.ObjectKey{Name: "token", Namespace: config.OperatorNamespace}, secret); err != nil {
+				return fmt.Errorf("fetching secret '%s' at namespace '%s' from the api: %w", "token", config.OperatorNamespace, err)
+			}
+
+			tokenBytes, exists := secret.Data["token"]
+			if !exists {
+				return fmt.Errorf("token not found in secret '%s'", "token")
+			}
+
+			// convert the []byte data to a string
+			token := string(tokenBytes)
+
+			if registration, err := FetchRegistration(token); err == nil {
+				// the data gets set as if the config map was able to be fetched even though it was
+				// obtained from the API
+				qpointRootCaConfigMap.Data["ca.crt"] = registration.Ca
+			} else {
+				return fmt.Errorf("missing configuration for Qpoint Root CA, check instructions")
+			}
 		}
 		return fmt.Errorf("retrieving Qtap CA config map: %w", err)
 	}
