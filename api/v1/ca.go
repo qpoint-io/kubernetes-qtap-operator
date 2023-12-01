@@ -180,7 +180,9 @@ func EnsureAssetsInNamespace(config *Config) error {
 			if registration, err := FetchRegistration(token); err == nil {
 				// the data gets set as if the config map was able to be fetched even though it was
 				// obtained from the API
-				qpointRootCaConfigMap.Data["ca.crt"] = registration.Ca
+				qpointRootCaConfigMap.Data = map[string]string{
+					"ca.crt": registration.Ca,
+				}
 			} else {
 				return fmt.Errorf("missing configuration for Qpoint Root CA, check instructions")
 			}
