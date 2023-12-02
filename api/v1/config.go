@@ -52,11 +52,14 @@ func (c *Config) Init(pod *corev1.Pod) error {
 
 	switch v := namespace.Labels[NAMESPACE_EGRESS_LABEL]; EgressType(v) {
 	case EgressType_DISABLED:
+		c.EgressType = EgressType_DISABLED
 		return nil
 	case EgressType_SERVICE:
+		c.EgressType = EgressType_SERVICE
 		namespaceEgressType = EgressType_SERVICE
 		configMapName = SERVICE_ANNOTATIONS_CONFIGMAP
 	case EgressType_INJECT:
+		c.EgressType = EgressType_INJECT
 		namespaceEgressType = EgressType_INJECT
 		configMapName = INJECT_ANNOTATIONS_CONFIGMAP
 	}
@@ -67,17 +70,21 @@ func (c *Config) Init(pod *corev1.Pod) error {
 
 	switch v := pod.Labels[POD_EGRESS_LABEL]; EgressType(v) {
 	case EgressType_DISABLED:
+		c.EgressType = EgressType_DISABLED
 		return nil
 	case EgressType_SERVICE:
+		c.EgressType = EgressType_SERVICE
 		podEgressType = EgressType_SERVICE
 		configMapName = SERVICE_ANNOTATIONS_CONFIGMAP
 	case EgressType_INJECT:
+		c.EgressType = EgressType_INJECT
 		podEgressType = EgressType_INJECT
 		configMapName = INJECT_ANNOTATIONS_CONFIGMAP
 	}
 
 	// egress is undefined for the entire namespace (regardless of what the pod label says) or pod and thus return immediately
 	if namespaceEgressType == EgressType_UNDEFINED && podEgressType == EgressType_UNDEFINED {
+		c.EgressType = EgressType_UNDEFINED
 		return nil
 	}
 

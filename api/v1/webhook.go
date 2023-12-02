@@ -100,6 +100,8 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 		}
+	case EgressType_DISABLED:
+		webhookLog.Info("Qpoint egress disabled, ignoring...")
 	default:
 		webhookLog.Info("Qpoint egress not enabled, ignoring...")
 	}
