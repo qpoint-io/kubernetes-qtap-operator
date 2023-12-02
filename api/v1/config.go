@@ -18,7 +18,7 @@ type EgressType string
 
 const (
 	EgressType_UNDEFINED EgressType = "undefined"
-	EgressType_DISABLED  EgressType = "disabled"
+	EgressType_DISABLE   EgressType = "disable"
 	EgressType_SERVICE   EgressType = "service"
 	EgressType_INJECT    EgressType = "inject"
 )
@@ -51,8 +51,8 @@ func (c *Config) Init(pod *corev1.Pod) error {
 	configMapName := ""
 
 	switch v := namespace.Labels[NAMESPACE_EGRESS_LABEL]; EgressType(v) {
-	case EgressType_DISABLED:
-		c.EgressType = EgressType_DISABLED
+	case EgressType_DISABLE:
+		c.EgressType = EgressType_DISABLE
 		return nil
 	case EgressType_SERVICE:
 		c.EgressType = EgressType_SERVICE
@@ -69,8 +69,8 @@ func (c *Config) Init(pod *corev1.Pod) error {
 	// order matters as pods override namespaces
 
 	switch v := pod.Labels[POD_EGRESS_LABEL]; EgressType(v) {
-	case EgressType_DISABLED:
-		c.EgressType = EgressType_DISABLED
+	case EgressType_DISABLE:
+		c.EgressType = EgressType_DISABLE
 		return nil
 	case EgressType_SERVICE:
 		c.EgressType = EgressType_SERVICE
