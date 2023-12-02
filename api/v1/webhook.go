@@ -35,10 +35,9 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 
 	// initialize a config with defaults
 	config := &Config{
+		EgressType:        EgressType_UNDEFINED,
 		Namespace:         req.Namespace,
 		OperatorNamespace: w.Namespace,
-		EnabledEgress:     false,
-		EnabledInjection:  false,
 		InjectCa:          false,
 		Client:            w.ApiClient,
 		Ctx:               ctx,
@@ -50,8 +49,11 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	if config.EnabledEgress {
-		webhookLog.Info("Qpoint egress enabled, mutating...")
+	switch v := config.EgressType; EgressType(v) {
+	case EgressType_SERVICE:
+		// for this case the pod is mutated for service egress
+
+		webhookLog.Info("Qpoint egress to service enabled, mutating...")
 
 		// mutate the pod to include egress through the gateway
 		if err := MutateEgress(pod, config); err != nil {
@@ -70,21 +72,38 @@ func (w *Webhook) Handle(ctx context.Context, req admission.Request) admission.R
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 		}
+	case EgressType_INJECT:
+		// for this case the pod is mutated for sidecar egress
 
-	} else {
-		webhookLog.Info("Qpoint egress not enabled, ignoring...")
-	}
+		webhookLog.Info("Qpoint egress to sidecar enabled, mutating...")
 
-	if config.EnabledInjection {
-		webhookLog.Info("Qpoint injection enabled, mutating...")
+		// mutate the pod to include egress through the gateway
+		if err := MutateEgress(pod, config); err != nil {
+			webhookLog.Error(err, "failed to mutate pod for egress")
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
 
 		// mutate the pod to include the sidecar
 		if err := MutateInjection(pod, config); err != nil {
 			webhookLog.Error(err, "failed to mutate pod for injection")
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
-	} else {
-		webhookLog.Info("Qpoint injection not enabled, ignoring...")
+
+		if config.InjectCa {
+			if err := EnsureAssetsInNamespace(config); err != nil {
+				webhookLog.Error(err, "failed to add assets to namespace for ca injection")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+
+			if err := MutateCaInjection(pod, config); err != nil {
+				webhookLog.Error(err, "failed to mutate pod for ca injection")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+		}
+	case EgressType_DISABLE:
+		webhookLog.Info("Qpoint egress disabled, ignoring...")
+	default:
+		webhookLog.Info("Qpoint egress not enabled, ignoring...")
 	}
 
 	marshaledPod, err := json.Marshal(pod)
