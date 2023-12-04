@@ -2,6 +2,8 @@ package v1
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -108,6 +110,42 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 	// fetch the init image tag
 	tag := config.GetAnnotation("qtap-tag")
 
+	// maintains the default of a nil security context (which is equivalent to accepting the pod setting)
+	var securityContext *corev1.SecurityContext = nil
+
+	// if the UID and/or GID annotations were set then try to convert them to the correct format for the security context
+	if uid, gid := config.GetAnnotation("qtap-uid"), config.GetAnnotation("qtap-gid"); uid != "" || gid != "" {
+		var qtapUid int64 = math.MinInt64 // this isn't a permitted UID value and so it is used as not set
+		var qtapGid int64 = math.MinInt64 // this isn't a permitted GID value and so it is used as not set
+
+		if uid != "" {
+			if n, err := strconv.ParseInt(uid, 10, 64); err == nil {
+				qtapUid = n
+			}
+		}
+		if gid != "" {
+			if n, err := strconv.ParseInt(gid, 10, 64); err == nil {
+				qtapGid = n
+			}
+		}
+
+		// If a UID was set via annotations we need a security context for the container with the UID
+		// and/or GID
+		if qtapUid != math.MinInt64 || qtapGid != math.MinInt64 {
+			securityContext = &corev1.SecurityContext{} // create empty security context
+
+			// the UID was set, set RunAsUser
+			if qtapUid != math.MinInt64 {
+				securityContext.RunAsUser = &qtapUid
+			}
+
+			// the GID was set, set RunAsGroup
+			if qtapGid != math.MinInt64 {
+				securityContext.RunAsGroup = &qtapGid
+			}
+		}
+	}
+
 	// create an init container
 	qtapContainer := corev1.Container{
 		Name:  "qtap",
@@ -119,6 +157,7 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 				Value: token,
 			},
 		},
+		SecurityContext: securityContext,
 		StartupProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{

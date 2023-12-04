@@ -24,3 +24,5 @@ data:
     qpoint.io/log-level: "info"
     qpoint.io/block-unknown: "false"
     qpoint.io/dns-lookup-family: "V4_ONLY"
+    qpoint.io/qtap-uid: "1010"
+    qpoint.io/qtap-gid: "1010"

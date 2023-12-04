@@ -30,8 +30,7 @@ type Config struct {
 	OperatorNamespace string
 	Client            client.Client
 	Ctx               context.Context
-
-	annotations map[string]string
+	annotations       map[string]string
 }
 
 // Config scenarios:
