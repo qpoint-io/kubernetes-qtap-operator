@@ -21,6 +21,8 @@ data:
     qpoint.io/egress-init-tag: "v0.0.7"
     qpoint.io/qtap-tag: "v0.0.10"
     qpoint.io/egress-port-mapping: "10080:80,10443:443,10000:"
+    qpoint.io/egress-accept-uids: "1010"
+    qpoint.io/egress-accept-gids: "1010"
     qpoint.io/log-level: "info"
     qpoint.io/block-unknown: "false"
     qpoint.io/dns-lookup-family: "V4_ONLY"
