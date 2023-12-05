@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -157,6 +158,13 @@ func EnsureAssetsInNamespace(config *Config) error {
 	if qtapCaBundleExists {
 		return nil
 	}
+
+	// it is possible that many mutations are requested in succession and this can lead to an "already exists"
+	// for the create operation. Thus, synchronize around the possible creation by only allowing one of this function
+	// to execute at any given time
+	mu := sync.Mutex{}
+	mu.Lock()
+	defer mu.Unlock()
 
 	// we need to see if we have the qtap ca in the operator namespace
 	qpointRootCaConfigMap := &corev1.ConfigMap{}
