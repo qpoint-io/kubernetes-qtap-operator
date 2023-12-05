@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -137,6 +138,13 @@ func MutateCaInjection(pod *corev1.Pod, config *Config) error {
 }
 
 func EnsureAssetsInNamespace(config *Config) error {
+	// it is possible that many mutations are requested in succession and this can lead to an "already exists"
+	// for the create operation. Thus, synchronize around the possible creation by only allowing one of this function
+	// to execute at any given time
+	mu := sync.Mutex{}
+	mu.Lock()
+	defer mu.Unlock()
+
 	// the goal is to ensure this exists already or we'll create it
 	qtapCaBundleExists := false
 
