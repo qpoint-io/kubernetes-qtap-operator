@@ -277,6 +277,14 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 		})
 	}
 
+	// API_ENDPOINT
+	if apiEndpoint := config.GetAnnotation("api-endpoint"); apiEndpoint != "" {
+		qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+			Name:  "ENDPOINT",
+			Value: apiEndpoint,
+		})
+	}
+
 	// append to the list
 	pod.Spec.Containers = append(pod.Spec.Containers, qtapContainer)
 
