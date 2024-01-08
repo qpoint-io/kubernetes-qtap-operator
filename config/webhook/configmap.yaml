@@ -37,4 +37,4 @@ data:
     qpoint.io/qtap-block-unknown: "false"
     qpoint.io/qtap-envoy-log-level: "error"
     qpoint.io/qtap-dns-lookup-family: "V4_ONLY"
-    qpoint.io/qtap-api-endpoint: "https://app.qpoint.io"
+    qpoint.io/qtap-api-endpoint: "https://api.qpoint.io"
