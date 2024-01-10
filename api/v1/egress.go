@@ -87,7 +87,7 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 	}
 
 	// append to the list
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, initContainer)
+	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 
 	// gtg
 	return nil
@@ -300,7 +300,7 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 	}
 
 	// append to the list
-	pod.Spec.Containers = append(pod.Spec.Containers, qtapContainer)
+	pod.Spec.Containers = append([]corev1.Container{qtapContainer}, pod.Spec.Containers...)
 
 	// gtg
 	return nil
