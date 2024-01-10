@@ -11,7 +11,7 @@ import (
 
 const SERVICE_ANNOTATIONS_CONFIGMAP = "qtap-operator-service-pod-annotations-configmap"
 const INJECT_ANNOTATIONS_CONFIGMAP = "qtap-operator-inject-pod-annotations-configmap"
-const NAMESPACE_EGRESS_LABEL = "qpoint-egress"
+const NAMESPACE_EGRESS_LABEL = "qpoint.io/egress"
 const POD_EGRESS_LABEL = "qpoint.io/egress"
 
 type EgressType string
