@@ -38,4 +38,4 @@ data:
     qpoint.io/qtap-envoy-log-level: "error"
     qpoint.io/qtap-dns-lookup-family: "V4_ONLY"
     qpoint.io/qtap-api-endpoint: "https://api.qpoint.io"
-    qpoint.io/qtap-labels-tags-filter: "app,.*name"
+    qpoint.io/qtap-labels-tags-filter: "app,.*name$"
