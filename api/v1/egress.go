@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"regexp"
 	"strconv"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -159,7 +161,7 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 		}
 	}
 
-	// create an init container
+	// create an qtap container
 	qtapContainer := corev1.Container{
 		Name:  "qtap",
 		Image: fmt.Sprintf("%s:%s", QTAP_IMAGE, tag),
@@ -298,6 +300,43 @@ func MutateInjection(pod *corev1.Pod, config *Config) error {
 			Value: apiEndpoint,
 		})
 	}
+
+	// by default the pods namespace is always added as a tag. This slice is used for appending
+	// additional tags below
+	tags := []string{strings.Join([]string{"namespace", pod.Namespace}, ":")}
+
+	//TAGS
+	if tagsFilters := config.GetAnnotation("qtap-labels-tags-filter"); tagsFilters != "" {
+		// the filter is a list of regular expressions used to determine if labels should be added
+		// as tags to qtap
+
+		regexps := []*regexp.Regexp{}
+
+		// loop over the comma separated list of regular expressions and compile a regular expression
+		// list that will be used to compare against the labels
+		for _, filter := range strings.Split(tagsFilters, ",") {
+			if regexFilter, err := regexp.Compile(filter); err != nil {
+				return fmt.Errorf("invalid regular expression for tags filter: %w", err)
+			} else {
+				regexps = append(regexps, regexFilter)
+			}
+		}
+
+		// loop over all pod labels and if key that matches a regular expression then append it to the
+		// list of tags
+		for k, v := range pod.Labels {
+			for _, r := range regexps {
+				if r.MatchString(k) {
+					tags = append(tags, strings.Join([]string{k, v}, ":"))
+				}
+			}
+		}
+	}
+
+	qtapContainer.Env = append(qtapContainer.Env, corev1.EnvVar{
+		Name:  "TAGS",
+		Value: strings.Join(tags, ","),
+	})
 
 	// append to the list
 	pod.Spec.Containers = append([]corev1.Container{qtapContainer}, pod.Spec.Containers...)
