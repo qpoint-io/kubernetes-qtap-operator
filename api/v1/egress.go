@@ -16,12 +16,6 @@ import (
 const INIT_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/kubernetes-qtap-init"
 const QTAP_IMAGE = "us-docker.pkg.dev/qpoint-edge/public/qtap"
 
-var (
-	ROOT_USER       int64 = 0 // The root user
-	ROOT_GROUP      int64 = 0 // The root group
-	RUN_AS_NON_ROOT       = false
-)
-
 func MutateEgress(pod *corev1.Pod, config *Config) error {
 	// fetch the init image tag
 	tag := config.GetAnnotation("qtap-init-tag")
@@ -36,11 +30,46 @@ func MutateEgress(pod *corev1.Pod, config *Config) error {
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
 			// The init container needs to run as root as it modifies the network
-			// for the pod
-			RunAsUser:    &ROOT_USER,
-			RunAsGroup:   &ROOT_GROUP,
-			RunAsNonRoot: &RUN_AS_NON_ROOT, // Allow running as root
+			// for the pod. Sometimes it also requires privileged depending on the
+			// security within the cluster. See annotations below which allow for
+			// setting the running user and group and other settings.
 		},
+	}
+
+	// SecurityContext RunAsUser
+	if runAsUser := config.GetAnnotation("qtap-init-run-as-user"); runAsUser != "" {
+		i, err := strconv.ParseInt(runAsUser, 10, 64)
+		if err != nil {
+			return fmt.Errorf("conversion error: %w", err)
+		}
+		initContainer.SecurityContext.RunAsUser = &i
+	}
+
+	// SecurityContext RunAsGroup
+	if runAsGroup := config.GetAnnotation("qtap-init-run-as-group"); runAsGroup != "" {
+		i, err := strconv.ParseInt(runAsGroup, 10, 64)
+		if err != nil {
+			return fmt.Errorf("conversion error: %w", err)
+		}
+		initContainer.SecurityContext.RunAsGroup = &i
+	}
+
+	// SecurityContext RunAsNonRoot
+	if runAsNonRoot := config.GetAnnotation("qtap-init-run-as-non-root"); runAsNonRoot != "" {
+		b, err := strconv.ParseBool(runAsNonRoot)
+		if err != nil {
+			return fmt.Errorf("conversion error: %w", err)
+		}
+		initContainer.SecurityContext.RunAsNonRoot = &b
+	}
+
+	// SecurityContext Privileged
+	if privileged := config.GetAnnotation("qtap-init-run-as-privileged"); privileged != "" {
+		b, err := strconv.ParseBool(privileged)
+		if err != nil {
+			return fmt.Errorf("conversion error: %w", err)
+		}
+		initContainer.SecurityContext.Privileged = &b
 	}
 
 	// TO_ADDR
